@@ -24,6 +24,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,9 +33,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"com.github/datastrophic/istio-aux/pkg/istio-aux"
+	istioaux "com.github/datastrophic/istio-aux/pkg/istio-aux"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	//+kubebuilder:scaffold:imports
@@ -69,9 +71,13 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: metricsAddr,
+		},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port: 9443,
+		}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "52d60f8c.io.datastrophic",
@@ -81,12 +87,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	httpClient, httpClientErr := rest.HTTPClientFor(mgr.GetConfig())
+	if httpClientErr != nil {
+		setupLog.Error(httpClientErr, "unable to start manager")
+		os.Exit(1)
+	}
+
 	gvk := schema.GroupVersionKind{
 		Group:   "",
 		Version: "v1",
 		Kind:    "Pod",
 	}
-	restClient, err := apiutil.RESTClientForGVK(gvk, false, mgr.GetConfig(), serializer.NewCodecFactory(mgr.GetScheme()))
+
+	restClient, err := apiutil.RESTClientForGVK(gvk, false, mgr.GetConfig(),
+		serializer.NewCodecFactory(mgr.GetScheme()), httpClient)
 	if err != nil {
 		setupLog.Error(err, "unable to create REST client")
 	}

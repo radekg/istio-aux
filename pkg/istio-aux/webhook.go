@@ -39,7 +39,7 @@ func (a *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 	logger := ctrl.Log.WithName("webhook")
 	pod := &corev1.Pod{}
 
-	err := a.decoder.Decode(req, pod)
+	err := (*a.decoder).Decode(req, pod)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
