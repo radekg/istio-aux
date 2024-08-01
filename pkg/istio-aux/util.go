@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -132,10 +133,45 @@ func CheckReadyForCleanup(pod *corev1.Pod) bool {
 		var istioState *corev1.ContainerState = nil
 
 		for _, container := range statuses {
+
 			state := container.State
-			if state.Terminated == nil && container.Name != "istio-proxy" {
-				running = append(running, container.Name)
-				continue
+			if container.Name != "istio-proxy" {
+				if state.Terminated == nil {
+					running = append(running, container.Name)
+					continue
+				} else {
+					// Pod's spec.RestartPolicy must be set to Never to consider the
+					// current container as terminated, if the pod wants to restart the
+					// container, we should never terminate the sidecar!
+					switch pod.Spec.RestartPolicy {
+					case v1.RestartPolicyNever:
+						// this container is done:
+					case v1.RestartPolicyAlways:
+						// this container is always running:
+						logger.Info("found container with terminated state but pod RestartPolicy == Always, considering pod running",
+							"pod", pod.Name,
+							"containerName", container.Name,
+							"containerID", container.ContainerID,
+							"image", fmt.Sprintf("%s:%s", container.Image, container.ImageID),
+							"exitCode", state.Terminated.ExitCode,
+							"pod.spec.RestartPolicy", pod.Spec.RestartPolicy)
+						running = append(running, container.Name)
+						continue // continues the foor loop
+					case v1.RestartPolicyOnFailure:
+						// this container is done only when exit code is 0:
+						if state.Terminated.ExitCode > 0 {
+							logger.Info("found container with terminated state but pod RestartPolicy == OnFailure, considering pod running",
+								"pod", pod.Name,
+								"containerName", container.Name,
+								"containerID", container.ContainerID,
+								"image", fmt.Sprintf("%s:%s", container.Image, container.ImageID),
+								"exitCode", state.Terminated.ExitCode,
+								"pod.spec.RestartPolicy", pod.Spec.RestartPolicy)
+							running = append(running, container.Name)
+							continue // continues the foor loop
+						}
+					}
+				}
 			}
 
 			if container.Name == "istio-proxy" && state.Terminated != nil {

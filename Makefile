@@ -67,6 +67,9 @@ run: generate fmt vet ## Run a controller from your host.
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
+podman-build: test ## Build docker image with the manager.
+	podman build -t ${IMG} .
+
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
@@ -85,12 +88,14 @@ deploy: kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/c
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+BIN_DIR = $(shell pwd)/bin
+CONTROLLER_GEN = $(BIN_DIR)/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1)
+	$(shell mkdir -p $(BIN_DIR))
+	$(shell GOPATH=$$(pwd)/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
+	$(shell mv $(BIN_DIR)/bin/controller-gen $(BIN_DIR)/controller-gen && rm -rf $(BIN_DIR)/bin/ && $(BIN_DIR)/pkg/)
 
-KUSTOMIZE = $(shell pwd)/bin/kustomize
+KUSTOMIZE = $(BIN_DIR)/kustomize
 kustomize: ## Download kustomize locally if necessary.
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
 
