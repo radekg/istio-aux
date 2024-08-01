@@ -92,8 +92,8 @@ BIN_DIR = $(shell pwd)/bin
 CONTROLLER_GEN = $(BIN_DIR)/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
 	$(shell mkdir -p $(BIN_DIR))
-	$(shell GOPATH=$$(pwd)/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
-	$(shell mv $(BIN_DIR)/bin/controller-gen $(BIN_DIR)/controller-gen && rm -rf $(BIN_DIR)/bin/ && $(BIN_DIR)/pkg/)
+	$(shell go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
+	$(shell cp $${GOPATH}/bin/controller-gen $(BIN_DIR)/controller-gen)
 
 KUSTOMIZE = $(BIN_DIR)/kustomize
 kustomize: ## Download kustomize locally if necessary.
